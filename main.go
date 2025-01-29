@@ -30,25 +30,44 @@ func hashContent(content []byte) string {
 }
 
 func calculateDelta(oldContent, newContent string) string {
+	if oldContent == newContent {
+		return ""	}
+
 	dmp := diffmatchpatch.New()
 	diffs := dmp.DiffMain(oldContent, newContent, false)
 	return dmp.DiffToDelta(diffs)
 }
 
-func applyDelta(baseContent, delta string) string {
+
+func applyDelta(baseContent, delta string) (string, error) {
 	dmp := diffmatchpatch.New()
-	diffs, _ := dmp.DiffFromDelta(baseContent, delta)
-	aplliedDelta, _ := dmp.PatchApply(dmp.PatchMake(diffs), baseContent)
-	return aplliedDelta
+	diffs, err := dmp.DiffFromDelta(baseContent, delta)
+	if err != nil {
+		return "", fmt.Errorf("error parsing delta: %v", err)
+	}
+
+	patches := dmp.PatchMake(diffs)
+	appliedContent, results := dmp.PatchApply(patches, baseContent)
+
+	if !results[0] {
+		return "", fmt.Errorf("error applying patch")
+	}
+
+	return appliedContent, nil
 }
 
 func loadIndex() map[string]string {
-	data, err := ioutil.ReadFile(filepath.Join(repoDir, "index"))
+	data, err := os.ReadFile(filepath.Join(repoDir, "index"))
 	if err != nil {
-		panic(err)
+		fmt.Printf("Error reading index file: %v\n", err)
+		return nil 
 	}
+	
 	var index map[string]string
-	json.Unmarshal(data, &index)
+	if err := json.Unmarshal(data, &index); err != nil {
+		fmt.Printf("Error unmarshalling index data: %v\n", err)
+		return nil
+	}
 	return index
 }
 
@@ -57,14 +76,22 @@ func saveIndex(index map[string]string) {
 	ioutil.WriteFile(filepath.Join(repoDir, "index"), data, 0644)
 }
 
-func loadHead() string {
-	data, _ := ioutil.ReadFile(filepath.Join(repoDir, "HEAD"))
-	return string(data)
+func loadHead() (string, error) {
+	data, err := os.ReadFile(filepath.Join(repoDir, "HEAD"))
+	if err != nil {
+		return "", fmt.Errorf("failed to read HEAD: %w", err)
+	}
+	return string(data), nil
 }
 
-func saveHead(hash string) {
-	ioutil.WriteFile(filepath.Join(repoDir, "HEAD"), []byte(hash), 0644)
+func saveHead(hash string) error {
+	err := os.WriteFile(filepath.Join(repoDir, "HEAD"), []byte(hash), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write HEAD: %w", err)
+	}
+	return nil
 }
+
 
 func loadCommits() []Commit {
 	data, err := ioutil.ReadFile(filepath.Join(repoDir, "commits"))
@@ -121,7 +148,11 @@ func commit(cmd *cobra.Command, args []string) {
 	}
 	message := args[0]
 
-	headHash := loadHead()
+	headHash, err := loadHead()
+	if err != nil {
+		fmt.Println("Error loading HEAD:", err)
+		return 
+	}
 	index := loadIndex()
 	commits := loadCommits()
 
@@ -158,20 +189,66 @@ func commit(cmd *cobra.Command, args []string) {
 
 func status(cmd *cobra.Command, args []string) {
 	index := loadIndex()
+
+	modifiedFiles := []string{}
+	missingFiles := []string{}
+	unchangedFiles := []string{}
+
 	for filename, hash := range index {
-		content, err := ioutil.ReadFile(filename)
+		content, err := os.ReadFile(filename)
 		if err != nil {
-			fmt.Printf("File missing: %s\n", filename)
+			missingFiles = append(missingFiles, filename)
 			continue
 		}
+
 		currentHash := hashContent(content)
 		if currentHash != hash {
-			fmt.Printf("Modified: %s\n", filename)
+			modifiedFiles = append(modifiedFiles, filename)
 		} else {
-			fmt.Printf("Unchanged: %s\n", filename)
+			unchangedFiles = append(unchangedFiles, filename)
 		}
 	}
+
+	files, err := os.ReadDir(".")
+	if err != nil {
+		fmt.Println("Error reading directory:", err)
+		return
+	}
+
+	untrackedFiles := []string{}
+	for _, file := range files {
+		if !file.IsDir() {
+			filename := file.Name()
+			if _, tracked := index[filename]; !tracked {
+				untrackedFiles = append(untrackedFiles, filename)
+			}
+		}
+	}
+
+	fmt.Println("Status:")
+	if len(modifiedFiles) > 0 {
+		fmt.Println("Modified files:")
+		for _, file := range modifiedFiles {
+			fmt.Println("  -", file)
+		}
+	}
+	if len(missingFiles) > 0 {
+		fmt.Println("Missing files:")
+		for _, file := range missingFiles {
+			fmt.Println("  -", file)
+		}
+	}
+	if len(untrackedFiles) > 0 {
+		fmt.Println("Untracked files:")
+		for _, file := range untrackedFiles {
+			fmt.Println("  -", file)
+		}
+	}
+	if len(modifiedFiles) == 0 && len(missingFiles) == 0 && len(untrackedFiles) == 0 {
+		fmt.Println("No changes.")
+	}
 }
+
 
 func getFileContentFromCommit(commitHash, filename string, commits []Commit) string {
 	for _, commit := range commits {
@@ -181,11 +258,19 @@ func getFileContentFromCommit(commitHash, filename string, commits []Commit) str
 				return ""
 			}
 			baseContent := getFileContentFromCommit(commit.ParentHash, filename, commits)
-			return applyDelta(baseContent, delta)
+
+			appliedContent, err := applyDelta(baseContent, delta)
+			if err != nil {
+				fmt.Println("Error applying delta:", err)
+				return ""
+			}
+
+			return appliedContent
 		}
 	}
 	return ""
 }
+
 
 func main() {
 	var rootCmd = &cobra.Command{
