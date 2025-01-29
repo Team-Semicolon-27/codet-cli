@@ -192,7 +192,6 @@ func status(cmd *cobra.Command, args []string) {
 
 	modifiedFiles := []string{}
 	missingFiles := []string{}
-	unchangedFiles := []string{}
 
 	for filename, hash := range index {
 		content, err := os.ReadFile(filename)
@@ -204,9 +203,7 @@ func status(cmd *cobra.Command, args []string) {
 		currentHash := hashContent(content)
 		if currentHash != hash {
 			modifiedFiles = append(modifiedFiles, filename)
-		} else {
-			unchangedFiles = append(unchangedFiles, filename)
-		}
+		} 
 	}
 
 	files, err := os.ReadDir(".")
