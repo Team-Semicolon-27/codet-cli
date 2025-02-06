@@ -3,7 +3,6 @@ module codet-cli
 go 1.23.5
 
 require (
-	github.com/sergi/go-diff v1.3.1
 	github.com/spf13/cobra v1.8.1
 )
 
