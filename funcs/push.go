@@ -50,7 +50,16 @@ func Push(filename string) {
 	parts := strings.Split(originStr, "/")
 	codatID := parts[len(parts)-1]
 
-	fmt.Println(codatID)
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Printf("Error reading file: %s\n", filename)
+		return
+	}
+
+	fmt.Println("Pushing file:", filename)
+	fmt.Println("Using token:", tokenStr)
+	fmt.Println("Pushing to:", originStr)
+	fmt.Println("File content:\n", string(content))
 
 	apiURL := fmt.Sprintf("http://localhost:3000/api/profile/verify-token?codatId=%s", codatID)
 
