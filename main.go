@@ -48,7 +48,6 @@ func Push(cmd *cobra.Command, args []string) {
 	file := args[0]
 	funcs.Push(file)
 }
-
 func main() {
 
 	var rootCmd = &cobra.Command{

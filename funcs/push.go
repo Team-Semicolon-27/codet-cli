@@ -1,6 +1,7 @@
 package funcs
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,11 +11,26 @@ import (
 	"strings"
 )
 
+var mapExtensions = map[string]string{
+	".go":    "Go",
+	".ts":    "TypeScript",
+	".js":    "JavaScript",
+	".py":    "Python",
+	".java":  "Java",
+	".cpp":   "C++",
+	".c":     "C",
+	".rs":    "Rust",
+	".rb":    "Ruby",
+	".php":   "PHP",
+	".swift": "Swift",
+}
+
 func Push(filename string) {
 	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
 		fmt.Println("Initialize the repo using: codat init")
 		return
 	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Error getting home directory:", err)
@@ -56,45 +72,62 @@ func Push(filename string) {
 		return
 	}
 
+	// Extract file extension and determine language
+	ext := filepath.Ext(filename)
+	language, exists := mapExtensions[ext]
+	if !exists {
+		language = "Unknown"
+	}
+
 	fmt.Println("Pushing file:", filename)
+	fmt.Println("Detected language:", language)
 	fmt.Println("Using token:", tokenStr)
 	fmt.Println("Pushing to:", originStr)
-	fmt.Println("File content:\n", string(content))
-
-	apiURL := fmt.Sprintf("http://localhost:3000/api/profile/verify-token?codatId=%s", codatID)
-
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		fmt.Println("Error creating API request:", err)
-		return
-	}
-
-	req.Header.Set("Authorization", "Bearer "+tokenStr)
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+
+	patchURL := fmt.Sprintf("http://localhost:3000/api/codat/edit/%s", codatID)
+
+	requestBody, err := json.Marshal(map[string]string{
+		"code":     string(content),
+		"language": language,
+	})
 	if err != nil {
-		fmt.Println("Error making API request:", err)
+		fmt.Println("Error creating request body:", err)
 		return
 	}
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	patchReq, err := http.NewRequest("PATCH", patchURL, bytes.NewBuffer(requestBody))
 	if err != nil {
-		fmt.Println("Error reading API response:", err)
+		fmt.Println("Error creating PATCH request:", err)
+		return
+	}
+	patchReq.Header.Set("Authorization", "Bearer "+tokenStr)
+	patchReq.Header.Set("Content-Type", "application/json")
+
+	patchResp, err := client.Do(patchReq)
+	if err != nil {
+		fmt.Println("Error making PATCH request:", err)
+		return
+	}
+	defer patchResp.Body.Close()
+
+	patchBody, err := io.ReadAll(patchResp.Body)
+	if err != nil {
+		fmt.Println("Error reading PATCH response:", err)
 		return
 	}
 
-	var apiResponse map[string]interface{}
-	if err := json.Unmarshal(body, &apiResponse); err != nil {
-		fmt.Println("Error parsing API response:", err)
+	var patchResponse map[string]interface{}
+	if err := json.Unmarshal(patchBody, &patchResponse); err != nil {
+		fmt.Println("Error parsing PATCH response:", err)
 		return
 	}
 
-	if resp.StatusCode != 200 {
-		fmt.Println("API Error:", apiResponse["error"])
+	if patchResp.StatusCode != 200 {
+		fmt.Println("PATCH API Error:", patchResponse["error"])
 		return
 	}
 
-	fmt.Println("API Verification Successful:", apiResponse["message"])
+	fmt.Println("Codat updated successfully:", patchResponse["message"])
 }
