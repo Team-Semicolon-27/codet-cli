@@ -1,0 +1,34 @@
+name: Build and Release codet CLI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Build CLI
+        run: |
+          go build -o codet
+          mkdir -p build/codet/usr/local/bin
+          mkdir -p build/codet/DEBIAN
+          mv codet build/codet/usr/local/bin/
+          cp debian/control debian/postinst debian/prerm build/codet/DEBIAN/
+          chmod 755 build/codet/DEBIAN/postinst build/codet/DEBIAN/prerm
+          dpkg-deb --build build/codet
+          mv build/codet.deb codet-cli.deb
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: codet-cli.deb
