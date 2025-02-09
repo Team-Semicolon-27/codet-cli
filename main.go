@@ -43,7 +43,6 @@ func SetToken(cmd *cobra.Command, args []string) {
 	token := args[0]
 	fmt.Println("Setting authentication token...")
 	funcs.SetToken(token)
-	fmt.Println("Token set successfully!")
 }
 
 func Push(cmd *cobra.Command, args []string) {

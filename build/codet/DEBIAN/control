@@ -1,0 +1,7 @@
+Package: codet
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Mrinal Gaur mrinalgaur2005@gmail.com
+Description: A CLI tool for codet, similar to Git.
