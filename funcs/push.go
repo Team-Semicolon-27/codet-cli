@@ -72,7 +72,6 @@ func Push(filename string) {
 		return
 	}
 
-	// Extract file extension and determine language
 	ext := filepath.Ext(filename)
 	language, exists := mapExtensions[ext]
 	if !exists {
@@ -129,5 +128,4 @@ func Push(filename string) {
 		return
 	}
 
-	fmt.Println("Codat updated successfully:", patchResponse["message"])
 }
