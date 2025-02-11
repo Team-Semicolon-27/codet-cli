@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -36,7 +37,17 @@ func Clone(codatLink string) {
 		}
 	}
 
-	outFile, err := os.Create(filename)
+	dirName := strings.TrimSuffix(filename, filepath.Ext(filename))
+
+	err = os.Mkdir(dirName, os.ModePerm)
+	if err != nil && !os.IsExist(err) {
+		fmt.Println("Error creating directory:", err)
+		return
+	}
+
+	filePath := filepath.Join(dirName, filename)
+
+	outFile, err := os.Create(filePath)
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return
@@ -49,5 +60,5 @@ func Clone(codatLink string) {
 		return
 	}
 
-	fmt.Printf("File downloaded successfully as %s!\n", filename)
+	fmt.Printf("File downloaded successfully as %s inside directory %s!\n", filename, dirName)
 }
